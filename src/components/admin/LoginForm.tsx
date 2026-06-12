@@ -1,48 +1,6 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-
-function EnvBanner() {
-  const [issue, setIssue] = useState<string | null>(null);
-
-  useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!url || !key) {
-      setIssue(
-        "Supabase is NOT configured on this deployment. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel → Environment Variables → Redeploy."
-      );
-      return;
-    }
-
-    fetch("/api/auth/check")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.wrongKey) {
-          setIssue(
-            "WRONG KEY: NEXT_PUBLIC_SUPABASE_ANON_KEY must be the publishable (anon) key, NOT sb_secret_. Fix in Vercel and Redeploy."
-          );
-        } else if (!data.ok) {
-          setIssue(
-            data.missing
-              ? `Missing env vars: ${data.missing.join(", ")}. Redeploy after adding them in Vercel.`
-              : data.error ?? "Cannot connect to Supabase. Check API keys."
-          );
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!issue) return null;
-
-  return (
-    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-      {issue}
-    </div>
-  );
-}
 
 export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [email, setEmail] = useState("");
@@ -51,11 +9,14 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
-  const supabase = createClient();
+  const [configOk, setConfigOk] = useState<boolean | null>(null);
 
-  function getCallbackUrl() {
-    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo ?? "/admin")}`;
-  }
+  useEffect(() => {
+    fetch("/api/auth/check")
+      .then((r) => r.json())
+      .then((data) => setConfigOk(data.ok === true && !data.wrongKey))
+      .catch(() => setConfigOk(false));
+  }, []);
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -64,27 +25,24 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
     setIsError(false);
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: getCallbackUrl(),
-        },
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
+      const data = await res.json();
 
-      if (error) {
+      if (!res.ok) {
         setIsError(true);
-        setMessage(error.message);
+        setMessage(data.error ?? "Failed to send code");
         return;
       }
 
       setStep("code");
-      setMessage(
-        "Code sent! Check inbox and spam. Enter the 6-digit code below."
-      );
-    } catch (err) {
+      setMessage("Code sent! Check inbox AND spam folder.");
+    } catch {
       setIsError(true);
-      setMessage(err instanceof Error ? err.message : "Request failed. Check browser console (F12).");
+      setMessage("Network error. Try again.");
     } finally {
       setLoading(false);
     }
@@ -96,42 +54,41 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
     setMessage("");
     setIsError(false);
 
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code.trim(),
-      type: "email",
-    });
+    try {
+      const res = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
 
-    setLoading(false);
+      if (!res.ok) {
+        setIsError(true);
+        setMessage(data.error ?? "Invalid code");
+        return;
+      }
 
-    if (error) {
+      window.location.href = redirectTo ?? "/admin";
+    } catch {
       setIsError(true);
-      setMessage(error.message);
-      return;
-    }
-
-    window.location.href = redirectTo ?? "/admin";
-  }
-
-  async function handleGoogle() {
-    setLoading(true);
-    setIsError(false);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: getCallbackUrl(),
-      },
-    });
-    if (error) {
+      setMessage("Network error. Try again.");
+    } finally {
       setLoading(false);
-      setIsError(true);
-      setMessage(error.message);
     }
   }
 
   return (
     <div className="space-y-6">
-      <EnvBanner />
+      {configOk === false && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          Supabase not configured correctly. Open{" "}
+          <a href="/api/auth/check" className="underline" target="_blank">
+            /api/auth/check
+          </a>{" "}
+          to see details. Fix keys in Vercel and Redeploy.
+        </div>
+      )}
+
       {step === "email" ? (
         <form onSubmit={handleSendCode} className="space-y-4">
           <div>
@@ -145,7 +102,7 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="you@restaurant.com"
+              placeholder="you@gmail.com"
             />
           </div>
           <button
@@ -163,18 +120,17 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
           </p>
           <div>
             <label htmlFor="code" className="block text-sm font-medium mb-1">
-              6-digit code
+              6-digit code from email
             </label>
             <input
               id="code"
               type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
               maxLength={6}
               required
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-center text-2xl tracking-widest"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center text-2xl tracking-widest"
               placeholder="000000"
             />
           </div>
@@ -194,35 +150,14 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
             }}
             className="w-full text-sm text-gray-500 hover:text-gray-700"
           >
-            ← Use a different email
+            ← Different email
           </button>
         </form>
       )}
 
-      {step === "email" && (
-        <>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleGoogle}
-            disabled={loading}
-            className="w-full py-2.5 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            Continue with Google
-          </button>
-        </>
-      )}
-
       {message && (
         <p
-          className={`text-sm text-center ${isError ? "text-red-600" : "text-gray-600"}`}
+          className={`text-sm text-center font-medium ${isError ? "text-red-600" : "text-green-700"}`}
         >
           {message}
         </p>
