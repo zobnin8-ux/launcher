@@ -1,7 +1,44 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+function EnvBanner() {
+  const [issue, setIssue] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!url || !key) {
+      setIssue(
+        "Supabase is NOT configured on this deployment. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel → Environment Variables → Redeploy."
+      );
+      return;
+    }
+
+    fetch("/api/auth/check")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) {
+          setIssue(
+            data.missing
+              ? `Missing env vars: ${data.missing.join(", ")}. Redeploy after adding them in Vercel.`
+              : data.error ?? "Cannot connect to Supabase. Check API keys."
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!issue) return null;
+
+  return (
+    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+      {issue}
+    </div>
+  );
+}
 
 export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [email, setEmail] = useState("");
@@ -22,26 +59,31 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
     setMessage("");
     setIsError(false);
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: getCallbackUrl(),
-      },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: getCallbackUrl(),
+        },
+      });
 
-    setLoading(false);
+      if (error) {
+        setIsError(true);
+        setMessage(error.message);
+        return;
+      }
 
-    if (error) {
+      setStep("code");
+      setMessage(
+        "Code sent! Check inbox and spam. Enter the 6-digit code below."
+      );
+    } catch (err) {
       setIsError(true);
-      setMessage(error.message);
-      return;
+      setMessage(err instanceof Error ? err.message : "Request failed. Check browser console (F12).");
+    } finally {
+      setLoading(false);
     }
-
-    setStep("code");
-    setMessage(
-      "Code sent! Check your inbox and spam folder. Enter the 6-digit code below."
-    );
   }
 
   async function handleVerifyCode(e: React.FormEvent) {
@@ -85,6 +127,7 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
 
   return (
     <div className="space-y-6">
+      <EnvBanner />
       {step === "email" ? (
         <form onSubmit={handleSendCode} className="space-y-4">
           <div>
