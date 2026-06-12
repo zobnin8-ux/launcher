@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Restaurant Launch Kit
 
-## Getting Started
+Turn restaurant data (questionnaire, PDF/photo menu, dish photos) into a live menu website with QR code and admin panel.
 
-First, run the development server:
+## Stack
+
+- **Next.js 14** (App Router, TypeScript)
+- **Supabase** (Postgres, Auth, Storage, RLS)
+- **Anthropic Claude** (menu parsing, translations, descriptions)
+- **Tailwind CSS**
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment
+
+Copy `.env.local.example` to `.env.local` and fill in:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+ANTHROPIC_API_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### 3. Run Supabase migrations
+
+Apply migrations from `supabase/migrations/` to your Supabase project (via Supabase CLI or SQL editor):
+
+1. `001_initial_schema.sql` — tables + RLS policies
+2. `002_storage_buckets.sql` — storage buckets + policies
+
+### 4. Enable Auth providers
+
+In Supabase Dashboard → Authentication:
+
+- Enable **Email** (magic link)
+- Enable **Google OAuth** (optional)
+
+Set redirect URL: `{APP_URL}/auth/callback`
+
+### 5. Run dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Routes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Public
 
-## Learn More
+| Route | Description |
+|-------|-------------|
+| `/` | Service landing page |
+| `/m/[slug]` | Restaurant home |
+| `/m/[slug]/menu` | Menu (`?lang=` for locale, `?src=qr` for analytics) |
+| `/m/[slug]/item/[itemId]` | Dish detail |
+| `/m/[slug]/contacts` | Contact & map link |
 
-To learn more about Next.js, take a look at the following resources:
+### Admin
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Route | Description |
+|-------|-------------|
+| `/login` | Sign in (magic link + Google) |
+| `/admin` | Restaurant list |
+| `/admin/new` | Create restaurant wizard |
+| `/admin/[id]` | Dashboard + analytics |
+| `/admin/[id]/menu` | Menu editor |
+| `/admin/[id]/menu/review/[jobId]` | Review AI-parsed menu |
+| `/admin/[id]/qr` | QR code generation |
+| `/admin/[id]/settings` | Settings, theme, publishing |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### API
 
-## Deploy on Vercel
+| Route | Description |
+|-------|-------------|
+| `POST /api/parse-menu` | Upload menu file, start async parsing |
+| `GET /api/parse-menu/[jobId]` | Poll parse job status |
+| `POST /api/translate` | Translate menu to configured locales |
+| `POST /api/generate-qr` | Generate QR PNG + SVG |
+| `POST /api/track` | Record analytics event |
+| `POST /api/improve-descriptions` | AI description suggestions |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy (Vercel)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Push to GitHub
+2. Import in Vercel
+3. Add environment variables
+4. Set `NEXT_PUBLIC_APP_URL` to production URL
+
+## Architecture notes
+
+- **Menu is structured data** — site, QR, and exports are derived from DB
+- **i18n via `translations` table** — no locale column on menus
+- **Parse jobs run async** — upload returns immediately, client polls every 3s
+- **ISR** — public pages use `revalidate` + `revalidateTag` on admin mutations
