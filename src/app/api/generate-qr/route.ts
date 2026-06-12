@@ -27,8 +27,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const targetUrl = `${appUrl}/m/${restaurant.slug}/menu?src=qr`;
+  const { getAppUrl } = await import("@/lib/utils/app-url");
+  const targetUrl = `${getAppUrl()}/m/${restaurant.slug}/menu?src=qr`;
 
   const pngBuffer = await QRCode.toBuffer(targetUrl, {
     width: 1024,

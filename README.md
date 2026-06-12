@@ -26,7 +26,13 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ANTHROPIC_API_KEY=
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_DEV_APP_URL=http://localhost:3000
+```
+
+On Vercel (Production only), add separately:
+
+```
+NEXT_PUBLIC_PROD_APP_URL=https://your-domain.vercel.app
 ```
 
 ### 3. Run Supabase migrations
@@ -93,8 +99,8 @@ Open [http://localhost:3000](http://localhost:3000)
 
 1. Push to GitHub
 2. Import in Vercel
-3. Add environment variables
-4. Set `NEXT_PUBLIC_APP_URL` to production URL
+3. Add environment variables (see below)
+4. Set `NEXT_PUBLIC_PROD_APP_URL` on Vercel Production only
 
 ## Architecture notes
 
