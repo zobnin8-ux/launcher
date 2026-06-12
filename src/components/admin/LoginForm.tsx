@@ -20,7 +20,11 @@ function EnvBanner() {
     fetch("/api/auth/check")
       .then((r) => r.json())
       .then((data) => {
-        if (!data.ok) {
+        if (data.wrongKey) {
+          setIssue(
+            "WRONG KEY: NEXT_PUBLIC_SUPABASE_ANON_KEY must be the publishable (anon) key, NOT sb_secret_. Fix in Vercel and Redeploy."
+          );
+        } else if (!data.ok) {
           setIssue(
             data.missing
               ? `Missing env vars: ${data.missing.join(", ")}. Redeploy after adding them in Vercel.`

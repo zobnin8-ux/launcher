@@ -19,6 +19,16 @@ export async function GET() {
     });
   }
 
+  if (anon!.startsWith("sb_secret_") || anon!.includes("service_role")) {
+    return NextResponse.json({
+      ok: false,
+      wrongKey: true,
+      hint:
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY must be the PUBLISHABLE (anon) key, NOT the secret key. In Supabase: Settings → API → anon public or Publishable API Key.",
+      anonKeyPrefix: anon!.slice(0, 16) + "...",
+    });
+  }
+
   try {
     const res = await fetch(`${url}/auth/v1/health`, {
       headers: { apikey: anon!, Authorization: `Bearer ${anon!}` },
