@@ -41,6 +41,7 @@ export interface Restaurant {
   currency: string;
   theme: Theme;
   logo_url: string | null;
+  cover_url: string | null;
   is_published: boolean;
   created_at: string;
 }

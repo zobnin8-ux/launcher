@@ -18,10 +18,12 @@ import { formatItemPrice } from "@/lib/utils/format-price";
 
 export function MenuEditor({
   restaurantId,
+  restaurantSlug,
   currency,
   initialMenus,
 }: {
   restaurantId: string;
+  restaurantSlug: string;
   currency: string;
   initialMenus: MenuWithCategories[];
 }) {
@@ -203,7 +205,15 @@ export function MenuEditor({
         <p className="text-sm text-red-600">{parseStatus}</p>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
+        <a
+          href={`/m/${restaurantSlug}/menu`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+        >
+          Preview as guest
+        </a>
         <label className="px-4 py-2 bg-orange-600 text-white rounded-lg cursor-pointer hover:bg-orange-700 text-sm font-medium">
           {parseLoading ? parseStatus : "Upload menu (PDF/photo)"}
           <input

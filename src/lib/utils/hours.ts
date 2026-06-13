@@ -10,15 +10,22 @@ const DAY_LABELS: Record<string, string> = {
   sun: "Sunday",
 };
 
-export function formatHours(hours: Hours | null | undefined): { day: string; hours: string }[] {
+export function formatHours(
+  hours: Hours | null | undefined
+): { key: string; day: string; hours: string }[] {
   const safe = hours && typeof hours === "object" ? hours : DEFAULT_HOURS;
   return Object.entries(DAY_LABELS).map(([key, label]) => {
     const day = safe[key];
     if (!day?.open || !day?.close) {
-      return { day: label, hours: "Closed" };
+      return { key, day: label, hours: "Closed" };
     }
-    return { day: label, hours: `${day.open} – ${day.close}` };
+    return { key, day: label, hours: `${day.open} – ${day.close}` };
   });
+}
+
+export function getTodayHoursKey(): string {
+  const keys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return keys[new Date().getDay()];
 }
 
 export const DEFAULT_HOURS: Hours = {

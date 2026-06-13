@@ -1,5 +1,23 @@
 import type { Item, ItemVariant } from "@/lib/types/database";
 
+export function itemHasDetailPage(
+  item: Pick<Item, "photo_url" | "description">
+): boolean {
+  return Boolean(item.photo_url) || (item.description?.length ?? 0) > 100;
+}
+
+export function formatVariantsInline(
+  item: Pick<Item, "variants">,
+  currency: string,
+  locale = "en"
+): string {
+  const variants = (item.variants ?? []) as ItemVariant[];
+  if (!variants.length) return "";
+  return variants
+    .map((v) => `${v.name} ${formatPrice(v.price, currency, locale)}`)
+    .join(" · ");
+}
+
 export function formatPrice(
   amount: number,
   currency: string,

@@ -97,6 +97,7 @@ export async function updateRestaurantSettings(
     theme?: Theme;
     is_published?: boolean;
     logo_url?: string | null;
+    cover_url?: string | null;
   }
 ) {
   const { supabase } = await requireUser();
@@ -135,6 +136,27 @@ export async function uploadLogo(restaurantId: string, formData: FormData) {
   } = supabase.storage.from("logos").getPublicUrl(path);
 
   return updateRestaurantSettings(restaurantId, { logo_url: publicUrl });
+}
+
+export async function uploadCover(restaurantId: string, formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const file = formData.get("file") as File;
+  if (!file) throw new Error("No file provided");
+
+  const ext = file.name.split(".").pop();
+  const path = `${user.id}/${restaurantId}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("covers")
+    .upload(path, file, { upsert: true });
+
+  if (uploadError) throw new Error(uploadError.message);
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("covers").getPublicUrl(path);
+
+  return updateRestaurantSettings(restaurantId, { cover_url: publicUrl });
 }
 
 export async function deleteRestaurant(restaurantId: string) {

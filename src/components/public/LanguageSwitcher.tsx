@@ -4,26 +4,28 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 const LOCALE_LABELS: Record<string, string> = {
-  en: "English",
-  es: "Español",
-  fr: "Français",
-  de: "Deutsch",
-  it: "Italiano",
-  pt: "Português",
-  ru: "Русский",
-  uk: "Українська",
-  pl: "Polski",
-  ja: "日本語",
-  zh: "中文",
-  ar: "العربية",
+  en: "EN",
+  es: "ES",
+  fr: "FR",
+  de: "DE",
+  it: "IT",
+  pt: "PT",
+  ru: "RU",
+  uk: "UK",
+  pl: "PL",
+  ja: "JA",
+  zh: "ZH",
+  ar: "AR",
 };
 
 export function LanguageSwitcher({
   locales,
   defaultLocale,
+  variant = "default",
 }: {
   locales: string[];
   defaultLocale: string;
+  variant?: "default" | "inverse";
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -33,7 +35,7 @@ export function LanguageSwitcher({
   if (safeLocales.length <= 1) return null;
 
   return (
-    <div className="flex gap-1 flex-wrap">
+    <div className="flex gap-3 shrink-0" role="navigation" aria-label="Language">
       {safeLocales.map((locale) => {
         const params = new URLSearchParams(searchParams.toString());
         if (locale === defaultLocale) {
@@ -44,16 +46,21 @@ export function LanguageSwitcher({
         const qs = params.toString();
         const href = qs ? `${pathname}?${qs}` : pathname;
         const active = locale === current;
+        const activeClass =
+          variant === "inverse"
+            ? active
+              ? "text-[var(--color-accent)] font-medium"
+              : "text-white/60 hover:text-white/90"
+            : active
+              ? "text-[var(--color-accent)] font-medium"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]";
 
         return (
           <Link
             key={locale}
             href={href}
-            className={`px-2 py-1 text-xs rounded-md transition-colors ${
-              active
-                ? "bg-[var(--accent)] text-white"
-                : "bg-black/5 dark:bg-white/10 hover:bg-black/10"
-            }`}
+            className={`text-xs tracking-wide transition-colors ${activeClass}`}
+            aria-current={active ? "page" : undefined}
           >
             {LOCALE_LABELS[locale] ?? locale.toUpperCase()}
           </Link>

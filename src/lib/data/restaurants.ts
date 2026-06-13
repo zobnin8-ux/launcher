@@ -57,8 +57,41 @@ export async function getPublishedRestaurantBySlug(
   return data as Restaurant;
 }
 
-async function getPublishedMenuTree(restaurantId: string): Promise<MenuWithCategories[]> {
-  const supabase = createPublicClient();
+async function getOwnerRestaurantBySlug(slug: string): Promise<Restaurant | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select("*")
+    .eq("slug", slug)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (error) return null;
+  return data as Restaurant;
+}
+
+async function getRestaurantForPublicView(
+  slug: string
+): Promise<{ restaurant: Restaurant; useAuthClient: boolean } | null> {
+  const published = await getPublishedRestaurantBySlug(slug);
+  if (published) return { restaurant: published, useAuthClient: false };
+
+  const owned = await getOwnerRestaurantBySlug(slug);
+  if (owned) return { restaurant: owned, useAuthClient: true };
+
+  return null;
+}
+
+async function getMenuTree(
+  restaurantId: string,
+  useAuthClient: boolean
+): Promise<MenuWithCategories[]> {
+  const supabase = useAuthClient ? await createClient() : createPublicClient();
 
   const { data: menus } = await supabase
     .from("menus")
@@ -100,22 +133,26 @@ export async function getPublishedRestaurantWithMenu(
   slug: string,
   locale?: string
 ): Promise<RestaurantWithMenu | null> {
-  const restaurant = await getPublishedRestaurantBySlug(slug);
-  if (!restaurant) return null;
+  const view = await getRestaurantForPublicView(slug);
+  if (!view) return null;
 
-  const menus = await getPublishedMenuTree(restaurant.id);
+  const { restaurant, useAuthClient } = view;
+  const menus = await getMenuTree(restaurant.id, useAuthClient);
   const effectiveLocale = locale ?? restaurant.default_locale;
+
+  const filterAvailable = (tree: MenuWithCategories[]) =>
+    tree.map((menu) => ({
+      ...menu,
+      categories: menu.categories.map((cat) => ({
+        ...cat,
+        items: cat.items.filter((i) => i.is_available),
+      })),
+    }));
 
   if (effectiveLocale === restaurant.default_locale) {
     return {
       ...restaurant,
-      menus: menus.map((menu) => ({
-        ...menu,
-        categories: menu.categories.map((cat) => ({
-          ...cat,
-          items: cat.items.filter((i) => i.is_available),
-        })),
-      })),
+      menus: filterAvailable(menus),
     };
   }
 

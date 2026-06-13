@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateRestaurantSettings, uploadLogo } from "@/actions/restaurants";
+import { updateRestaurantSettings, uploadLogo, uploadCover } from "@/actions/restaurants";
 import type { Hours, Restaurant, Theme } from "@/lib/types/database";
 import { DEFAULT_HOURS } from "@/lib/utils/hours";
 
@@ -65,6 +65,15 @@ export function SettingsForm({ restaurant }: { restaurant: Restaurant }) {
     router.refresh();
   }
 
+  async function handleCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    await uploadCover(restaurant.id, fd);
+    router.refresh();
+  }
+
   async function handleTranslate() {
     setTranslating(true);
     const res = await fetch("/api/translate", {
@@ -112,6 +121,16 @@ export function SettingsForm({ restaurant }: { restaurant: Restaurant }) {
       </section>
 
       <section className="space-y-4">
+        <h2 className="font-semibold text-lg">Cover photo</h2>
+        <p className="text-sm text-gray-500">Shown on your public home page. Recommended: wide photo, at least 1200×800.</p>
+        {restaurant.cover_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={restaurant.cover_url} alt="Cover" className="w-full max-w-md aspect-[3/2] object-cover rounded-lg" />
+        )}
+        <input type="file" accept="image/*" onChange={handleCover} />
+      </section>
+
+      <section className="space-y-4">
         <h2 className="font-semibold text-lg">Hours</h2>
         {DAY_KEYS.map((day) => (
           <div key={day} className="flex items-center gap-3 text-sm">
@@ -136,7 +155,7 @@ export function SettingsForm({ restaurant }: { restaurant: Restaurant }) {
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">Theme</h2>
         <div className="flex gap-4">
-          <input name="theme_primary" type="color" defaultValue={theme.primary ?? "#c2410c"} className="h-10 w-20" />
+          <input name="theme_primary" type="color" defaultValue={theme.primary ?? "#8A3324"} className="h-10 w-20" />
           <select name="theme_mode" defaultValue={theme.mode ?? "light"} className="border rounded-lg px-3 py-2">
             <option value="light">Light</option>
             <option value="dark">Dark</option>

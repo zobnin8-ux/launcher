@@ -43,6 +43,7 @@ export default async function MenuPage({
 
       <MenuEditor
         restaurantId={restaurantId}
+        restaurantSlug={restaurant.slug}
         currency={restaurant.currency}
         initialMenus={menus}
       />

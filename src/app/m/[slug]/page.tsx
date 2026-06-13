@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense } from "react";
-import { PublicHeader, themeToCssVars } from "@/components/public/PublicHeader";
+import { PublicShell } from "@/components/public/PublicShell";
 import { LanguageSwitcher } from "@/components/public/LanguageSwitcher";
 import { getPublishedRestaurantWithMenu } from "@/lib/data/restaurants";
+import { langQuery, withLang } from "@/lib/utils/public-theme";
+import { getOpenStatus, cityFromAddress } from "@/lib/utils/hours-status";
 import type { Theme } from "@/lib/types/database";
-import { formatHours } from "@/lib/utils/hours";
 
 export const dynamic = "force-dynamic";
 
@@ -23,63 +25,130 @@ export default async function RestaurantHomePage({
   if (!data) notFound();
 
   const theme = (data.theme as Theme) || {};
-  const hours = formatHours(data.hours);
+  const langQs = langQuery(lang, data.default_locale);
+  const { label: hoursLabel } = getOpenStatus(data.hours);
+  const city = cityFromAddress(data.address);
+  const subtitle = [data.cuisine, city].filter(Boolean).join(" · ");
+
+  if (data.cover_url) {
+    return (
+      <PublicShell theme={theme} className="relative">
+        <div className="relative min-h-screen">
+          <Image
+            src={data.cover_url}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.15) 100%)",
+            }}
+          />
+          <div className="relative z-10 flex flex-col min-h-screen text-white">
+            <div className="max-w-[640px] mx-auto w-full px-5 pt-5 flex justify-end">
+              <Suspense>
+                <LanguageSwitcher
+                  locales={data.locales}
+                  defaultLocale={data.default_locale}
+                  variant="inverse"
+                />
+              </Suspense>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center px-5 pb-8 text-center">
+              {data.logo_url && (
+                <Image
+                  src={data.logo_url}
+                  alt={data.name}
+                  width={80}
+                  height={80}
+                  className="w-20 h-20 rounded-full object-cover mb-5 ring-1 ring-white/20"
+                />
+              )}
+              <h1 className="font-display text-3xl md:text-[32px] leading-tight">
+                {data.name}
+              </h1>
+              {subtitle && (
+                <p className="text-white/70 mt-2 text-sm">{subtitle}</p>
+              )}
+              <p className="text-white/80 mt-3 text-sm">{hoursLabel}</p>
+              <Link
+                href={withLang(`/m/${slug}/menu`, langQs)}
+                className="mt-8 inline-block px-8 py-3.5 bg-[var(--color-accent)] text-white text-[17px] font-medium hover:opacity-90 transition-opacity"
+              >
+                View menu
+              </Link>
+            </div>
+
+            {data.address && (
+              <div className="px-5 pb-8 text-center">
+                <Link
+                  href={withLang(`/m/${slug}/contacts`, langQs)}
+                  className="text-sm text-white/70 hover:text-white transition-colors"
+                >
+                  {data.address}
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </PublicShell>
+    );
+  }
 
   return (
-    <div
-      style={themeToCssVars(theme)}
-      className="min-h-screen bg-[var(--bg)] text-[var(--text)]"
-    >
-      <PublicHeader slug={slug} name={data.name} logoUrl={data.logo_url} />
+    <PublicShell theme={theme}>
+      <div className="min-h-screen print-frame m-3 flex flex-col">
+        <div className="max-w-[640px] mx-auto w-full px-5 pt-5 flex justify-end">
+          <Suspense>
+            <LanguageSwitcher
+              locales={data.locales}
+              defaultLocale={data.default_locale}
+            />
+          </Suspense>
+        </div>
 
-      <main className="max-w-lg mx-auto px-4 py-8">
-        <Suspense>
-          <div className="flex justify-end mb-4">
-            <LanguageSwitcher locales={data.locales} defaultLocale={data.default_locale} />
-          </div>
-        </Suspense>
-
-        <div className="text-center mb-8">
+        <div className="flex-1 flex flex-col items-center justify-center px-5 pb-8 text-center">
           {data.logo_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={data.logo_url}
               alt={data.name}
-              className="w-24 h-24 rounded-full object-cover mx-auto mb-4 ring-4 ring-[var(--accent)]/20"
+              width={80}
+              height={80}
+              className="w-20 h-20 rounded-full object-cover mb-5"
             />
           )}
-          <h1 className="text-3xl font-bold">{data.name}</h1>
-          {data.cuisine && (
-            <p className="text-[var(--muted)] mt-1">{data.cuisine}</p>
+          <h1 className="font-display text-3xl md:text-[32px] leading-tight">
+            {data.name}
+          </h1>
+          {subtitle && (
+            <p className="text-[var(--color-text-muted)] mt-2 text-sm">{subtitle}</p>
           )}
+          <p className="text-[var(--color-text-muted)] mt-3 text-sm">{hoursLabel}</p>
+          <Link
+            href={withLang(`/m/${slug}/menu`, langQs)}
+            className="mt-8 inline-block px-8 py-3.5 bg-[var(--color-accent)] text-white text-[17px] font-medium hover:opacity-90 transition-opacity"
+          >
+            View menu
+          </Link>
         </div>
 
-        <Link
-          href={`/m/${slug}/menu${lang ? `?lang=${lang}` : ""}`}
-          className="block w-full py-4 bg-[var(--accent)] text-white text-center rounded-2xl font-semibold text-lg hover:opacity-90 transition-opacity"
-        >
-          View menu
-        </Link>
-
-        <div className="mt-8 bg-[var(--card)] rounded-2xl p-5 shadow-sm">
-          <h2 className="font-semibold mb-3">Hours</h2>
-          <dl className="space-y-1 text-sm">
-            {hours.map(({ day, hours: h }) => (
-              <div key={day} className="flex justify-between">
-                <dt className="text-[var(--muted)]">{day}</dt>
-                <dd>{h}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <Link
-          href={`/m/${slug}/contacts${lang ? `?lang=${lang}` : ""}`}
-          className="block mt-4 text-center text-[var(--accent)] text-sm"
-        >
-          Contact & location →
-        </Link>
-      </main>
-    </div>
+        {data.address && (
+          <div className="px-5 pb-8 text-center">
+            <Link
+              href={withLang(`/m/${slug}/contacts`, langQs)}
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              {data.address}
+            </Link>
+          </div>
+        )}
+      </div>
+    </PublicShell>
   );
 }

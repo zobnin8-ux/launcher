@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Suspense } from "react";
-import { PublicHeader, themeToCssVars } from "@/components/public/PublicHeader";
-import { LanguageSwitcher } from "@/components/public/LanguageSwitcher";
+import { PublicShell } from "@/components/public/PublicShell";
+import { PublicHeader } from "@/components/public/PublicHeader";
+import { CategoryNav } from "@/components/public/CategoryNav";
+import { MenuItemRow } from "@/components/public/MenuItemRow";
+import { PublicFooter } from "@/components/public/PublicFooter";
 import { TrackEvent } from "@/components/public/TrackEvent";
 import { QrScanTracker } from "@/components/public/QrScanTracker";
 import { getPublishedRestaurantWithMenu } from "@/lib/data/restaurants";
-import { formatItemPrice } from "@/lib/utils/format-price";
-import { DishPhotoPlaceholder } from "@/components/public/DishPhotoPlaceholder";
+import { langQuery } from "@/lib/utils/public-theme";
 import type { Theme } from "@/lib/types/database";
 
 export const dynamic = "force-dynamic";
@@ -26,13 +26,19 @@ export default async function MenuPage({
   if (!data) notFound();
 
   const theme = (data.theme as Theme) || {};
-  const langQs = sp.lang ? `?lang=${sp.lang}` : "";
+  const langQs = langQuery(sp.lang, data.default_locale);
+  const locale = sp.lang ?? data.default_locale;
+
+  const allCategories = data.menus.flatMap((menu) =>
+    menu.categories.map((cat) => ({ id: cat.id, name: cat.name }))
+  );
+
+  const hasItems = data.menus.some((m) =>
+    m.categories.some((c) => c.items.length > 0)
+  );
 
   return (
-    <div
-      style={themeToCssVars(theme)}
-      className="min-h-screen bg-[var(--bg)] text-[var(--text)] pb-8"
-    >
+    <PublicShell theme={theme}>
       <TrackEvent restaurantId={data.id} eventType="menu_view" />
       <QrScanTracker restaurantId={data.id} src={sp.src} />
 
@@ -40,87 +46,62 @@ export default async function MenuPage({
         slug={slug}
         name={data.name}
         logoUrl={data.logo_url}
+        locales={data.locales}
+        defaultLocale={data.default_locale}
         showBack
         backHref={`/m/${slug}${langQs}`}
         backLabel="Home"
       />
 
-      <main className="max-w-lg mx-auto px-4 py-4">
-        <Suspense>
-          <div className="flex justify-end mb-4">
-            <LanguageSwitcher locales={data.locales} defaultLocale={data.default_locale} />
-          </div>
-        </Suspense>
+      <CategoryNav categories={allCategories} />
 
-        <h1 className="text-2xl font-bold mb-6">Menu</h1>
-
+      <main className="max-w-[640px] mx-auto px-5 py-6">
         {data.menus.map((menu) => (
-          <div key={menu.id} className="space-y-8">
+          <div key={menu.id}>
             {data.menus.length > 1 && (
-              <h2 className="text-lg font-semibold text-[var(--accent)]">{menu.name}</h2>
+              <h2 className="font-display text-xl mb-6 mt-2">{menu.name}</h2>
             )}
             {menu.categories.map((cat) => (
-              <section key={cat.id}>
-                <h3 className="text-lg font-bold border-b border-[var(--accent)]/30 pb-2 mb-4">
-                  {cat.name}
-                </h3>
+              <section
+                key={cat.id}
+                id={`cat-${cat.id}`}
+                className="menu-section mb-10"
+              >
+                <h3 className="menu-category-title">{cat.name}</h3>
+                <hr className="menu-category-rule" />
                 {cat.description && (
-                  <p className="text-sm text-[var(--muted)] mb-3">{cat.description}</p>
+                  <p className="text-sm text-[var(--color-text-muted)] mb-4 -mt-2">
+                    {cat.description}
+                  </p>
                 )}
-                <div className="space-y-4">
-                  {cat.items.filter((i) => i.is_available).map((item) => (
-                    <Link
-                      key={item.id}
-                      href={`/m/${slug}/item/${item.id}${langQs}`}
-                      className="flex gap-3 bg-[var(--card)] rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      {item.photo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.photo_url}
-                          alt=""
-                          className="w-16 h-16 rounded-lg object-cover shrink-0"
-                        />
-                      ) : (
-                        <DishPhotoPlaceholder categoryName={cat.name} tags={item.tags} />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between gap-2">
-                          <span className="font-medium">{item.name}</span>
-                          <span className="text-[var(--accent)] shrink-0 text-sm font-medium">
-                            {formatItemPrice(item, data.currency, sp.lang ?? data.default_locale)}
-                          </span>
-                        </div>
-                        {item.description && (
-                          <p className="text-sm text-[var(--muted)] mt-0.5 line-clamp-2">
-                            {item.description}
-                          </p>
-                        )}
-                        {(item.tags ?? []).length > 0 && (
-                          <div className="flex gap-1 mt-1 flex-wrap">
-                            {(item.tags ?? []).map((tag) => (
-                              <span
-                                key={tag}
-                                className="text-xs px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                {cat.items.map((item) => (
+                  <MenuItemRow
+                    key={item.id}
+                    item={item}
+                    slug={slug}
+                    langQs={langQs}
+                    currency={data.currency}
+                    locale={locale}
+                  />
+                ))}
               </section>
             ))}
           </div>
         ))}
 
-        {data.menus.every((m) => m.categories.length === 0) && (
-          <p className="text-center text-[var(--muted)] py-12">Menu coming soon.</p>
+        {!hasItems && (
+          <p className="text-center text-[var(--color-text-muted)] py-16">
+            Menu coming soon.
+          </p>
         )}
       </main>
-    </div>
+
+      <PublicFooter
+        name={data.name}
+        address={data.address}
+        slug={slug}
+        langQs={langQs}
+      />
+    </PublicShell>
   );
 }
