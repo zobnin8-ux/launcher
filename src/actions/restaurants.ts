@@ -125,3 +125,26 @@ export async function uploadLogo(restaurantId: string, formData: FormData) {
 
   return updateRestaurantSettings(restaurantId, { logo_url: publicUrl });
 }
+
+export async function deleteRestaurant(restaurantId: string) {
+  const { supabase } = await requireUser();
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("slug")
+    .eq("id", restaurantId)
+    .single();
+
+  const { error } = await supabase
+    .from("restaurants")
+    .delete()
+    .eq("id", restaurantId);
+
+  if (error) throw new Error(error.message);
+
+  if (restaurant?.slug) {
+    revalidateRestaurant(restaurant.slug);
+  }
+  revalidatePath("/admin");
+  redirect("/admin");
+}

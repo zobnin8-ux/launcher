@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RestaurantCard } from "@/components/admin/RestaurantCard";
 import { getOwnerRestaurants } from "@/lib/data/restaurants";
 
 export default async function AdminPage() {
@@ -29,27 +30,7 @@ export default async function AdminPage() {
       ) : (
         <div className="grid gap-4">
           {restaurants.map((r) => (
-            <Link
-              key={r.id}
-              href={`/admin/${r.id}`}
-              className="block bg-white rounded-xl border p-5 hover:border-orange-300 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-semibold text-lg">{r.name}</h2>
-                  <p className="text-sm text-gray-500">{r.cuisine ?? "Restaurant"}</p>
-                </div>
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    r.is_published
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {r.is_published ? "Published" : "Draft"}
-                </span>
-              </div>
-            </Link>
+            <RestaurantCard key={r.id} restaurant={r} />
           ))}
         </div>
       )}
