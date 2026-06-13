@@ -1,6 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mergeParseResults, parseMenuPage, withRetry } from "@/lib/ai/parse-menu";
-import { fileToImageBuffers } from "@/lib/ai/pdf-images";
+import { detectMediaType, fileToImageBuffers } from "@/lib/ai/pdf-images";
+
+function mimeTypeFromFileName(fileName: string): string {
+  const type = detectMediaType("", fileName);
+  return type === "pdf" ? "application/pdf" : type;
+}
 
 export async function processParseJob(jobId: string) {
   const admin = createAdminClient();
@@ -43,10 +48,8 @@ export async function processParseJob(jobId: string) {
     }
 
     const buffer = Buffer.from(await fileData.arrayBuffer());
-    const fileName = path.split("/").pop() ?? "menu.pdf";
-    const mimeType = fileName.endsWith(".pdf")
-      ? "application/pdf"
-      : "image/jpeg";
+    const fileName = path.split("/").pop() ?? "menu.jpg";
+    const mimeType = mimeTypeFromFileName(fileName);
 
     const pages = await fileToImageBuffers(buffer, mimeType, fileName);
     const pageResults = [];
