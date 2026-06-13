@@ -5,9 +5,10 @@ import { LanguageSwitcher } from "@/components/public/LanguageSwitcher";
 import { TrackEvent } from "@/components/public/TrackEvent";
 import { getItemById } from "@/lib/data/restaurants";
 import { formatItemPrice } from "@/lib/utils/format-price";
+import { DishPhotoPlaceholder } from "@/components/public/DishPhotoPlaceholder";
 import type { ItemVariant, Theme } from "@/lib/types/database";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function ItemPage({
   params,
@@ -56,13 +57,21 @@ export default async function ItemPage({
           </div>
         </Suspense>
 
-        {item.photo_url && (
+        {item.photo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.photo_url}
             alt={item.name}
             className="w-full aspect-[4/3] object-cover rounded-2xl mb-6"
           />
+        ) : (
+          <div className="mb-6">
+            <DishPhotoPlaceholder
+              categoryName={category.name}
+              tags={item.tags}
+              size="lg"
+            />
+          </div>
         )}
 
         <p className="text-sm text-[var(--muted)]">{category.name}</p>
@@ -95,9 +104,9 @@ export default async function ItemPage({
           )}
         </div>
 
-        {item.tags.length > 0 && (
+        {(item.tags ?? []).length > 0 && (
           <div className="flex gap-2 mt-4 flex-wrap">
-            {item.tags.map((tag) => (
+            {(item.tags ?? []).map((tag) => (
               <span
                 key={tag}
                 className="text-xs px-2 py-1 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full"
@@ -108,9 +117,9 @@ export default async function ItemPage({
           </div>
         )}
 
-        {item.allergens.length > 0 && (
+        {(item.allergens ?? []).length > 0 && (
           <p className="mt-4 text-xs text-[var(--muted)]">
-            Allergens: {item.allergens.join(", ")}
+            Allergens: {(item.allergens ?? []).join(", ")}
           </p>
         )}
       </main>

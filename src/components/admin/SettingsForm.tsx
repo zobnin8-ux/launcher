@@ -83,6 +83,15 @@ export function SettingsForm({ restaurant }: { restaurant: Restaurant }) {
 
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">Basic info</h2>
+        <div>
+          <label className="block text-sm font-medium mb-1 text-gray-500">Public URL slug</label>
+          <input
+            value={restaurant.slug}
+            readOnly
+            className="w-full border rounded-lg px-3 py-2 bg-gray-50 font-mono text-sm"
+          />
+          <p className="text-xs text-gray-500 mt-1">Slug cannot be changed after creation (printed QR codes).</p>
+        </div>
         <input name="name" defaultValue={restaurant.name} required className="w-full border rounded-lg px-3 py-2" placeholder="Restaurant name" />
         <input name="cuisine" defaultValue={restaurant.cuisine ?? ""} className="w-full border rounded-lg px-3 py-2" placeholder="Cuisine type" />
         <textarea name="address" defaultValue={restaurant.address ?? ""} className="w-full border rounded-lg px-3 py-2" placeholder="Address" rows={2} />

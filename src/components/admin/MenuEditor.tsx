@@ -56,8 +56,8 @@ export function MenuEditor({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setParseStatus("File too large. Max 10 MB.");
+    if (file.size > 32 * 1024 * 1024) {
+      setParseStatus("File too large. Max 32 MB for PDF, 10 MB for photos.");
       return;
     }
 

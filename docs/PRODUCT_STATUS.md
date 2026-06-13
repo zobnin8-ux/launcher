@@ -60,10 +60,10 @@
 - **Next.js 14.2** (App Router, TypeScript, Server Components, Server Actions)
 - **Tailwind CSS**
 - **Supabase** — Postgres, Auth, Storage, RLS
-- **Anthropic SDK** — vision (парсинг меню), text (описания, переводы)
-- **sharp** — только для PDF (lazy import); фото JPG/PNG идут в Claude без конвертации
+- **Anthropic SDK** — vision (парсинг меню), native PDF document blocks, text (описания, переводы)
 - **qrcode** — генерация QR
-- **pdf-lib** — в зависимостях (PDF pipeline через sharp)
+
+> **sharp и pdf-lib удалены** (спринт «Стабилизация»). PDF отправляется в Claude API напрямую.
 
 ---
 
@@ -74,7 +74,7 @@
 | URL | Описание | Статус |
 |-----|----------|--------|
 | `/` | Лендинг сервиса | ✅ Работает |
-| `/m/[slug]` | Главная ресторана (название, часы, кнопка «Меню») | ⚠️ **500 на production** (известный баг) |
+| `/m/[slug]` | Главная ресторана (название, часы, кнопка «Меню») | ✅ `dynamic = force-dynamic` |
 | `/m/[slug]/menu` | Меню (категории, блюда, цены) | ✅ Работает |
 | `/m/[slug]/item/[itemId]` | Карточка блюда | ✅ Работает |
 | `/m/[slug]/contacts` | Контакты, часы, ссылка на карты | ✅ Работает |
@@ -92,7 +92,7 @@ Slug уникален; при дубликате имени добавляетс
 |-----|----------|
 | `/login` | Вход (magic link) |
 | `/admin` | Список ресторанов (+ Delete) |
-| `/admin/new` | Создание ресторана (имя, кухня, адрес, валюта) |
+| `/admin/new` | Создание ресторана (**slug с live-проверкой**, preview URL) |
 | `/admin/[id]` | Dashboard: аналитика, навигация, **блок «Публичные ссылки»** |
 | `/admin/[id]/menu` | Menu editor + upload + improve descriptions |
 | `/admin/[id]/menu/review/[jobId]` | Review AI-распознанного меню → Confirm & import |
@@ -107,7 +107,8 @@ Slug уникален; при дубликате имени добавляетс
 |----------|-------|----------|
 | `/api/parse-menu` | POST | Загрузка файла в Storage + создание `parse_job` (быстрый ответ) |
 | `/api/parse-menu/[jobId]` | GET | Статус job |
-| `/api/parse-menu/[jobId]/process` | POST | AI-обработка (Claude vision), до 300 сек |
+| `/api/parse-menu/[jobId]/process` | POST | AI-обработка (Claude), maxDuration **60 сек** (Hobby) |
+| `/api/slug/check` | GET | Проверка доступности slug |
 | `/api/improve-descriptions` | POST | AI-описания для блюд |
 | `/api/translate` | POST | Перевод меню на языки из Settings |
 | `/api/generate-qr` | POST | PNG + SVG QR |
@@ -156,10 +157,9 @@ QR / ссылка → /m/{slug}/menu
 
 ### ✅ Реализовано
 
-1. **Парсинг меню** (фото JPG/PNG, PDF с ограничениями)
-   - Извлечение категорий, названий, цен, вариантов, тегов
-   - Экран review перед импортом
-   - Многостраничный PDF — через sharp (на Vercel может быть нестабильно)
+1. **Парсинг меню** (фото JPG/PNG, PDF через Claude document API)
+   - PDF до 32 MB, изображения до 10 MB
+   - Jobs в `processing` > 10 мин → auto `error`
 
 2. **Improve descriptions**
    - Генерация/улучшение текстовых описаний для блюд
@@ -244,29 +244,27 @@ Storage:
 
 ## 12. Известные проблемы и ограничения
 
-### Баги
+### Баги (после спринта «Стабилизация»)
 
-| # | Проблема | Severity |
-|---|----------|----------|
-| 1 | `/m/[slug]` (главная) — **500** на Vercel при рабочем `/menu` и `/contacts` | High |
-| 2 | Slug с суффиксом (`-2`) — легко открыть неверную ссылку | Medium |
-| 3 | Публичная ссылка раньше была спрятана (частично исправлено: `PublicSiteCard`) | Medium |
-| 4 | PDF-парсинг на Vercel зависит от sharp/libvips | Medium |
+| # | Проблема | Статус |
+|---|----------|--------|
+| 1 | `/m/[slug]` 500 | ✅ Исправлено (`force-dynamic`, public client без cookies) |
+| 2 | Slug `-2` без предупреждения | ✅ Исправлено (явное поле slug + live check) |
+| 3 | Публичная ссылка спрятана | ✅ PublicSiteCard + Copy на Dashboard, Menu, QR |
+| 4 | PDF через sharp | ✅ Удалено; native PDF в Claude |
 
 ### Ограничения платформы
 
 | # | Ограничение |
 |---|-------------|
-| 1 | Vercel Hobby — timeout serverless ~10 сек; AI parsing вынесен в `/process` с `maxDuration: 300` (нужен Pro для длинных job) |
+| 1 | Vercel Hobby — **maxDuration 60 сек** на AI routes. При апгрейде на Pro поднять до 300 в `vercel.json` |
 | 2 | Supabase free — magic link only, без кастомных email-шаблонов |
 | 3 | Кириллица в PowerShell/логах может отображаться как `???` — в БД данные могут быть корректны |
 
-### UX / product gaps
+### UX (остаточные gaps)
 
-- Нет onboarding «что делать после import»
-- Нет preview «как видит гость» в админке
-- Improve descriptions — отдельный шаг, не автоматический
-- Фото блюд — только ручная загрузка
+- Нет preview «как видит гость» в админке (iframe)
+- Фото блюд — ручная загрузка или emoji-плейсхолдеры (✅ добавлены)
 
 ---
 
@@ -325,18 +323,21 @@ vercel.json                      # maxDuration для parse routes
 - [x] Settings (контакты, тема, часы, валюта)
 - [x] Improve descriptions
 - [x] Translate (API + кнопка в Settings)
-- [ ] **Главная `/m/[slug]` без 500**
-- [ ] Понятный onboarding и public URL с первого экрана
+- [x] **Главная `/m/[slug]` без 500**
+- [x] Onboarding «What's next» + public URL с Copy
+- [x] Slug picker при создании ресторана
+- [x] PDF без sharp
+- [x] Плейсхолдеры фото на публичном меню
 
-### Не входило в MVP (backlog для ревизии)
+### Не входило в MVP (backlog)
 
-1. **Фото блюд из scan-меню** (computer vision / crop)
-2. **Полноценный landing ресторана** (hero, gallery, about)
-3. **Рубли по умолчанию** для RU-рынка
-4. **Единый slug** без `-2` или UI-предупреждение при создании дубликата
-5. **Preview mode** в админке
-6. **Экспорт** PDF / iiko / r_keeper
-7. **Custom domain** per restaurant
+1. ~~**Фото блюд из scan-меню**~~ — **REJECTED**. Кропы с бумажного меню выглядят хуже отсутствия фото. Вместо этого — emoji-плейсхолдеры по категории.
+2. **Полноценный landing ресторана** (hero, gallery, about) — трек B
+3. **Preview mode** в админке
+4. **Экспорт** PDF / iiko / r_keeper
+5. **Custom domain** per restaurant
+
+> Продукт целится в **US-рынок**. Дефолтная валюта **USD**. Мультивалютность через Settings.
 
 ---
 
@@ -346,9 +347,9 @@ vercel.json                      # maxDuration для parse routes
 
 | Трек | Фокус | Effort |
 |------|-------|--------|
-| **A. Стабилизация** | Fix home 500, slug UX, валюта RUB, onboarding, «Публичные ссылки» везде | 1–2 дня |
-| **B. Визуал** | Улучшить public menu UI, лого, фото, hero на главной | 3–5 дней |
-| **C. Vision** | Crop фото блюд со scan-меню, auto-assign `photo_url` | 1–2 недели+ |
+| **A. Стабилизация** | ✅ Выполнено (июнь 2026) | — |
+| **B. Визуал** | Улучшить public menu UI, hero на главной | 3–5 дней |
+| ~~**C. Vision**~~ | Crop фото со scan — **REJECTED** (используем плейсхолдеры) | — |
 
 ---
 
@@ -356,13 +357,14 @@ vercel.json                      # maxDuration для parse routes
 
 ```
 [ ] /login — magic link приходит и логинит
-[ ] /admin/new — создать ресторан
+[ ] /admin/new — slug с live-проверкой, нельзя создать занятый slug
+[ ] /m/{slug} — главная открывается (200)
+[ ] PDF-меню парсится без sharp
 [ ] /admin/[id]/settings — Published ON, currency, logo
 [ ] /admin/[id]/menu — upload фото меню → review → confirm
 [ ] /admin/[id]/menu — improve descriptions → apply
 [ ] /admin/[id]/qr — generate QR
 [ ] /m/{slug}/menu — меню видно без логина
-[ ] /m/{slug} — главная открывается (сейчас FAIL)
 [ ] /m/{slug}/contacts — контакты
 [ ] QR URL с ?src=qr — событие в dashboard stats
 ```

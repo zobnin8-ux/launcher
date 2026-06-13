@@ -82,7 +82,7 @@ export function ReviewEditor({
     setSaving(true);
     try {
       await confirmParseResult(restaurantId, jobId, result);
-      router.push(`/admin/${restaurantId}/menu`);
+      router.push(`/admin/${restaurantId}/menu?imported=1`);
       router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to save");

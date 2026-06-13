@@ -27,13 +27,14 @@ export function LanguageSwitcher({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const safeLocales = locales?.length ? locales : [defaultLocale];
   const current = searchParams.get("lang") ?? defaultLocale;
 
-  if (locales.length <= 1) return null;
+  if (safeLocales.length <= 1) return null;
 
   return (
     <div className="flex gap-1 flex-wrap">
-      {locales.map((locale) => {
+      {safeLocales.map((locale) => {
         const params = new URLSearchParams(searchParams.toString());
         if (locale === defaultLocale) {
           params.delete("lang");

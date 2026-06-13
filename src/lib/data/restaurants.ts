@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache";
 import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -46,22 +45,16 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
 export async function getPublishedRestaurantBySlug(
   slug: string
 ): Promise<Restaurant | null> {
-  return unstable_cache(
-    async () => {
-      const supabase = createPublicClient();
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("slug", slug)
-        .eq("is_published", true)
-        .single();
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_published", true)
+    .single();
 
-      if (error) return null;
-      return data as Restaurant;
-    },
-    [`published-restaurant-${slug}`],
-    { tags: [`restaurant-${slug}`], revalidate: 60 }
-  )();
+  if (error) return null;
+  return data as Restaurant;
 }
 
 async function getPublishedMenuTree(restaurantId: string): Promise<MenuWithCategories[]> {
@@ -110,11 +103,7 @@ export async function getPublishedRestaurantWithMenu(
   const restaurant = await getPublishedRestaurantBySlug(slug);
   if (!restaurant) return null;
 
-  const menus = await unstable_cache(
-    () => getPublishedMenuTree(restaurant.id),
-    [`published-menu-${restaurant.id}`],
-    { tags: [`restaurant-${slug}`], revalidate: 60 }
-  )();
+  const menus = await getPublishedMenuTree(restaurant.id);
   const effectiveLocale = locale ?? restaurant.default_locale;
 
   if (effectiveLocale === restaurant.default_locale) {

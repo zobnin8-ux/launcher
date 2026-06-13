@@ -1,14 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { mergeParseResults, parseMenuPage, withRetry } from "@/lib/ai/parse-menu";
-import { detectMediaType, fileToImageBuffers } from "@/lib/ai/pdf-images";
-
-function mimeTypeFromFileName(fileName: string): string {
-  const type = detectMediaType("", fileName);
-  return type === "pdf" ? "application/pdf" : type;
-}
+import {
+  imageMediaTypeFromFileName,
+  isPdfFile,
+  parseMenuImage,
+  parseMenuPdf,
+  withRetry,
+} from "@/lib/ai/parse-menu";
+import { expireStaleParseJobs } from "@/lib/ai/parse-jobs";
 
 export async function processParseJob(jobId: string) {
   const admin = createAdminClient();
+
+  await expireStaleParseJobs(admin);
 
   const { data: job } = await admin
     .from("parse_jobs")
@@ -36,7 +39,6 @@ export async function processParseJob(jobId: string) {
   }
 
   try {
-
     const path = claimed.source_file_url;
 
     const { data: fileData, error: downloadError } = await admin.storage
@@ -49,20 +51,19 @@ export async function processParseJob(jobId: string) {
 
     const buffer = Buffer.from(await fileData.arrayBuffer());
     const fileName = path.split("/").pop() ?? "menu.jpg";
-    const mimeType = mimeTypeFromFileName(fileName);
+    const mimeType = fileName.toLowerCase().endsWith(".pdf")
+      ? "application/pdf"
+      : "image/jpeg";
 
-    const pages = await fileToImageBuffers(buffer, mimeType, fileName);
-    const pageResults = [];
+    const base64 = buffer.toString("base64");
+    let merged;
 
-    for (const page of pages) {
-      const base64 = page.buffer.toString("base64");
-      const result = await withRetry(() =>
-        parseMenuPage(base64, page.mediaType)
-      );
-      pageResults.push(result);
+    if (isPdfFile(fileName, mimeType)) {
+      merged = await withRetry(() => parseMenuPdf(base64));
+    } else {
+      const mediaType = imageMediaTypeFromFileName(fileName, mimeType);
+      merged = await withRetry(() => parseMenuImage(base64, mediaType));
     }
-
-    const merged = mergeParseResults(pageResults);
 
     await admin
       .from("parse_jobs")
@@ -75,11 +76,15 @@ export async function processParseJob(jobId: string) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Menu parsing failed. Please try again.";
+    const friendly = message.includes("timeout") || message.includes("timed out")
+      ? "Processing took too long. Try uploading fewer pages at once."
+      : message;
+
     await admin
       .from("parse_jobs")
       .update({
         status: "error",
-        error_message: message,
+        error_message: friendly,
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);

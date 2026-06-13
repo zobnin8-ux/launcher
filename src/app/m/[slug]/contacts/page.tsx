@@ -7,7 +7,7 @@ import { getPublishedRestaurantWithMenu } from "@/lib/data/restaurants";
 import { formatHours } from "@/lib/utils/hours";
 import type { Theme } from "@/lib/types/database";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function ContactsPage({
   params,

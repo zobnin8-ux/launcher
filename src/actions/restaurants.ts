@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidateRestaurant } from "@/lib/data/restaurants";
-import { uniqueSlug } from "@/lib/utils/slug";
+import { isValidSlug } from "@/lib/utils/slug";
 import { DEFAULT_HOURS } from "@/lib/utils/hours";
 import type { Hours, Theme } from "@/lib/types/database";
 
@@ -27,6 +28,7 @@ export async function createRestaurant(formData: FormData) {
   const { supabase, user } = await requireUser();
 
   const name = formData.get("name") as string;
+  const slug = (formData.get("slug") as string)?.trim().toLowerCase();
   const cuisine = (formData.get("cuisine") as string) || null;
   const address = (formData.get("address") as string) || null;
   const phone = (formData.get("phone") as string) || null;
@@ -35,11 +37,20 @@ export async function createRestaurant(formData: FormData) {
   const localesRaw = formData.get("locales") as string;
   const locales = localesRaw ? localesRaw.split(",").map((l) => l.trim()) : ["en"];
 
-  const { data: existing } = await supabase.from("restaurants").select("slug");
-  const slug = uniqueSlug(
-    name,
-    (existing ?? []).map((r) => r.slug)
-  );
+  if (!isValidSlug(slug)) {
+    throw new Error("Invalid slug. Use lowercase letters, numbers, and hyphens.");
+  }
+
+  const admin = createAdminClient();
+  const { data: taken } = await admin
+    .from("restaurants")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (taken) {
+    throw new Error("This slug is already taken. Choose another.");
+  }
 
   const { data: restaurant, error } = await supabase
     .from("restaurants")

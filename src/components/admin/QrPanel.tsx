@@ -2,16 +2,21 @@
 
 import { useState } from "react";
 import type { QrCode } from "@/lib/types/database";
+import { CopyButton } from "@/components/admin/CopyButton";
+import { getAppUrl } from "@/lib/utils/app-url";
 
 export function QrPanel({
   restaurantId,
   initialQr,
+  menuSlug,
 }: {
   restaurantId: string;
   initialQr: QrCode | null;
+  menuSlug: string;
 }) {
   const [qr, setQr] = useState(initialQr);
   const [loading, setLoading] = useState(false);
+  const menuUrl = `${getAppUrl()}/m/${menuSlug}/menu`;
 
   async function generate() {
     setLoading(true);
@@ -30,6 +35,11 @@ export function QrPanel({
       <p className="text-gray-600">
         Generate a QR code that links directly to your public menu.
       </p>
+
+      <div className="flex items-start gap-2 text-sm bg-gray-50 border rounded-lg p-3">
+        <p className="flex-1 break-all font-mono text-gray-700">{menuUrl}</p>
+        <CopyButton text={menuUrl} />
+      </div>
 
       <button
         onClick={generate}

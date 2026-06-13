@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isPdfFile, MAX_IMAGE_BYTES, MAX_PDF_BYTES } from "@/lib/ai/parse-menu";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
-
-const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,9 +25,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing file or restaurantId" }, { status: 400 });
     }
 
-    if (file.size > MAX_BYTES) {
+    const isPdf = isPdfFile(file.name, file.type);
+    const maxBytes = isPdf ? MAX_PDF_BYTES : MAX_IMAGE_BYTES;
+
+    if (file.size > maxBytes) {
       return NextResponse.json(
-        { error: "File too large. Max 10 MB." },
+        {
+          error: isPdf
+            ? "PDF too large. Max 32 MB. Upload photos of individual pages instead."
+            : "File too large. Max 10 MB.",
+        },
         { status: 400 }
       );
     }
@@ -59,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { error: uploadError } = await admin.storage
       .from("menu-scans")
       .upload(path, buffer, {
-        contentType: file.type || "image/jpeg",
+        contentType: file.type || (isPdf ? "application/pdf" : "image/jpeg"),
       });
 
     if (uploadError) {

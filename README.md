@@ -88,8 +88,9 @@ Open [http://localhost:3000](http://localhost:3000)
 
 | Route | Description |
 |-------|-------------|
-| `POST /api/parse-menu` | Upload menu file, start async parsing |
+| `POST /api/parse-menu` | Upload menu file (returns jobId) |
 | `GET /api/parse-menu/[jobId]` | Poll parse job status |
+| `POST /api/parse-menu/[jobId]/process` | Run AI parsing (max 60s on Hobby) |
 | `POST /api/translate` | Translate menu to configured locales |
 | `POST /api/generate-qr` | Generate QR PNG + SVG |
 | `POST /api/track` | Record analytics event |
@@ -106,5 +107,9 @@ Open [http://localhost:3000](http://localhost:3000)
 
 - **Menu is structured data** — site, QR, and exports are derived from DB
 - **i18n via `translations` table** — no locale column on menus
-- **Parse jobs run async** — upload returns immediately, client polls every 3s
-- **ISR** — public pages use `revalidate` + `revalidateTag` on admin mutations
+- **Parse jobs** — upload returns jobId; client calls `/process`; stale jobs (>10 min processing) auto-fail
+- **ISR** — admin mutations call `revalidateTag`; public pages use `dynamic = force-dynamic`
+
+## Vercel timeouts
+
+On **Hobby**, AI routes use `maxDuration: 60` (see `vercel.json`). On **Pro**, raise to 300 for large PDF menus.

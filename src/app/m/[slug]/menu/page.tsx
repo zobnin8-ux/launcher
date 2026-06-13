@@ -7,9 +7,10 @@ import { TrackEvent } from "@/components/public/TrackEvent";
 import { QrScanTracker } from "@/components/public/QrScanTracker";
 import { getPublishedRestaurantWithMenu } from "@/lib/data/restaurants";
 import { formatItemPrice } from "@/lib/utils/format-price";
+import { DishPhotoPlaceholder } from "@/components/public/DishPhotoPlaceholder";
 import type { Theme } from "@/lib/types/database";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function MenuPage({
   params,
@@ -73,13 +74,15 @@ export default async function MenuPage({
                       href={`/m/${slug}/item/${item.id}${langQs}`}
                       className="flex gap-3 bg-[var(--card)] rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow"
                     >
-                      {item.photo_url && (
+                      {item.photo_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.photo_url}
                           alt=""
                           className="w-16 h-16 rounded-lg object-cover shrink-0"
                         />
+                      ) : (
+                        <DishPhotoPlaceholder categoryName={cat.name} tags={item.tags} />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between gap-2">
@@ -93,9 +96,9 @@ export default async function MenuPage({
                             {item.description}
                           </p>
                         )}
-                        {item.tags.length > 0 && (
+                        {(item.tags ?? []).length > 0 && (
                           <div className="flex gap-1 mt-1 flex-wrap">
-                            {item.tags.map((tag) => (
+                            {(item.tags ?? []).map((tag) => (
                               <span
                                 key={tag}
                                 className="text-xs px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded"
