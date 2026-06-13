@@ -29,6 +29,8 @@ export function MenuEditor({
   const [parseLoading, setParseLoading] = useState(false);
   const [parseStatus, setParseStatus] = useState<string>("");
   const [suggestions, setSuggestions] = useState<{ id: string; description: string }[]>([]);
+  const [improveLoading, setImproveLoading] = useState(false);
+  const [improveStatus, setImproveStatus] = useState<string>("");
   const router = useRouter();
 
   const menu = menus[0];
@@ -148,13 +150,40 @@ export function MenuEditor({
       }))
     );
 
-    const res = await fetch("/api/improve-descriptions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ restaurantId, items: allItems }),
-    });
-    const data = await res.json();
-    setSuggestions(data.suggestions ?? []);
+    if (allItems.length === 0) {
+      setImproveStatus("No menu items yet. Add dishes first.");
+      return;
+    }
+
+    setImproveLoading(true);
+    setImproveStatus("AI is writing descriptions… (10–30 sec)");
+    setSuggestions([]);
+
+    try {
+      const res = await fetch("/api/improve-descriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, items: allItems }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setImproveStatus(data.error ?? "Failed to improve descriptions");
+        return;
+      }
+
+      const next = data.suggestions ?? [];
+      setSuggestions(next);
+      setImproveStatus(
+        next.length > 0
+          ? `${next.length} suggestion${next.length === 1 ? "" : "s"} — review below`
+          : "No suggestions returned. Try again."
+      );
+    } catch {
+      setImproveStatus("Request failed. Try again.");
+    } finally {
+      setImproveLoading(false);
+    }
   }
 
   async function applySuggestion(id: string, description: string) {
@@ -193,11 +222,26 @@ export function MenuEditor({
         </button>
         <button
           onClick={handleImproveDescriptions}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+          disabled={improveLoading}
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
         >
-          Improve descriptions
+          {improveLoading ? "Improving…" : "Improve descriptions"}
         </button>
       </div>
+
+      {improveStatus && (
+        <p
+          className={`text-sm rounded-lg px-3 py-2 ${
+            improveStatus.includes("Failed") ||
+            improveStatus.includes("failed") ||
+            improveStatus.includes("No menu items")
+              ? "text-red-700 bg-red-50 border border-red-200"
+              : "text-amber-800 bg-amber-50 border border-amber-200"
+          }`}
+        >
+          {improveStatus}
+        </p>
+      )}
 
       {suggestions.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
