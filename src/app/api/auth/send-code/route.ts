@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
-  const { email } = await request.json();
+  const { email, redirectTo } = await request.json();
 
   if (!email || typeof email !== "string") {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -25,11 +25,13 @@ export async function POST(request: Request) {
 
   const supabase = createClient(url, key);
 
+  const next = typeof redirectTo === "string" && redirectTo.startsWith("/") ? redirectTo : "/admin";
+
   const { data, error } = await supabase.auth.signInWithOtp({
     email: email.trim(),
     options: {
       shouldCreateUser: true,
-      emailRedirectTo: `${appUrl}/auth/confirm?type=email&next=/admin`,
+      emailRedirectTo: `${appUrl}/auth/confirm?type=email&next=${encodeURIComponent(next)}`,
     },
   });
 
