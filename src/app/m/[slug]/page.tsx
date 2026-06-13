@@ -9,10 +9,6 @@ import { formatHours } from "@/lib/utils/hours";
 
 export const revalidate = 60;
 
-export async function generateStaticParams() {
-  return [];
-}
-
 export default async function RestaurantHomePage({
   params,
   searchParams,

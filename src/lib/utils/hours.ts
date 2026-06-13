@@ -10,9 +10,10 @@ const DAY_LABELS: Record<string, string> = {
   sun: "Sunday",
 };
 
-export function formatHours(hours: Hours): { day: string; hours: string }[] {
+export function formatHours(hours: Hours | null | undefined): { day: string; hours: string }[] {
+  const safe = hours && typeof hours === "object" ? hours : DEFAULT_HOURS;
   return Object.entries(DAY_LABELS).map(([key, label]) => {
-    const day = hours[key];
+    const day = safe[key];
     if (!day?.open || !day?.close) {
       return { day: label, hours: "Closed" };
     }

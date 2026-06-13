@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MenuEditor } from "@/components/admin/MenuEditor";
+import { PublicSiteCard } from "@/components/admin/PublicSiteCard";
 import { getAdminMenuTree, getRestaurantById } from "@/lib/data/restaurants";
 import { ensureDefaultMenu } from "@/actions/menu";
 
@@ -25,7 +26,9 @@ export default async function MenuPage({
         ← Dashboard
       </Link>
       <h1 className="mt-2 text-2xl font-bold">Menu editor</h1>
-      <p className="text-gray-500 text-sm mb-8">{restaurant.name}</p>
+      <p className="text-gray-500 text-sm mb-4">{restaurant.name}</p>
+
+      <PublicSiteCard slug={restaurant.slug} isPublished={restaurant.is_published} />
 
       <MenuEditor
         restaurantId={restaurantId}

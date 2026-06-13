@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PublicSiteCard } from "@/components/admin/PublicSiteCard";
 import { getEventCounts, getRestaurantById } from "@/lib/data/restaurants";
 
 export default async function RestaurantDashboard({
@@ -28,23 +29,10 @@ export default async function RestaurantDashboard({
             ← All restaurants
           </Link>
           <h1 className="mt-2 text-2xl font-bold">{restaurant.name}</h1>
-          <p className="text-gray-500 text-sm">
-            /m/{restaurant.slug}
-            {restaurant.is_published ? (
-              <a
-                href={`/m/${restaurant.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-2 text-orange-600 hover:underline"
-              >
-                View site ↗
-              </a>
-            ) : (
-              <span className="ml-2 text-amber-600">(not published)</span>
-            )}
-          </p>
         </div>
       </div>
+
+      <PublicSiteCard slug={restaurant.slug} isPublished={restaurant.is_published} />
 
       <div className="grid sm:grid-cols-2 gap-4 mb-8">
         <StatCard title="Menu views (7 days)" value={stats7.menu_view} />
