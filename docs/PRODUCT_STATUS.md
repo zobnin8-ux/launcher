@@ -1,8 +1,9 @@
 # Restaurant Launch Kit — состояние продукта (MVP)
 
-> Документ для ревизии. Актуально на: **июнь 2026**.  
+> Документ для ревизии. Актуально на: **13 июня 2026** (после спринта «Стабилизация»).  
 > Репозиторий: https://github.com/zobnin8-ux/launcher  
-> Production: **https://launcher-black.vercel.app**
+> Production: **https://launcher-black.vercel.app**  
+> Последний коммит: `b6ddf4d`
 
 ---
 
@@ -13,11 +14,13 @@
 **Это не** полноценный конструктор сайтов (Tilda/Wix).  
 **Это** structured menu + admin + QR + минимальная публичная витрина для телефона.
 
+**Статус:** MVP **готов к показу первым клиентам** после спринта «Стабилизация» (июнь 2026).
+
 | Ожидание заказчика | Реальность MVP |
 |--------------------|----------------|
-| Загрузил фото меню → готовый красивый сайт с картинками блюд | AI извлекает **текст** (названия, цены, категории). Фото блюд **не** вырезаются со скана |
-| «Сайт ресторана» | Список блюд на телефоне + опционально главная/контакты |
-| Загрузил и забыл | Загрузка → review → import → Settings (publish) → QR → ручные фото |
+| Загрузил фото меню → готовый красивый сайт с картинками блюд | AI извлекает **текст** (названия, цены, категории). Фото блюд — **вручную** или emoji-плейсхолдер |
+| «Сайт ресторана» | Список блюд на телефоне + главная/контакты |
+| Загрузил и забыл | Upload → review → import → **What's next** → publish → QR |
 
 ---
 
@@ -53,6 +56,13 @@
 - OTP-код в письме **не используется** (ограничение free tier Supabase без custom SMTP)  
 - Redirect URLs в Supabase: `{APP_URL}/auth/confirm`, `{APP_URL}/auth/callback`, `{APP_URL}/**`
 
+### Vercel timeouts
+
+| План | maxDuration AI routes | Где настроено |
+|------|----------------------|---------------|
+| **Hobby** (сейчас) | **60 сек** | `vercel.json` |
+| Pro (рекомендация для больших PDF) | до 300 сек | поднять в `vercel.json` |
+
 ---
 
 ## 3. Стек
@@ -60,10 +70,10 @@
 - **Next.js 14.2** (App Router, TypeScript, Server Components, Server Actions)
 - **Tailwind CSS**
 - **Supabase** — Postgres, Auth, Storage, RLS
-- **Anthropic SDK** — vision (парсинг меню), native PDF document blocks, text (описания, переводы)
+- **Anthropic SDK** — vision (JPG/PNG), **native PDF document blocks**, text (описания, переводы)
 - **qrcode** — генерация QR
 
-> **sharp и pdf-lib удалены** (спринт «Стабилизация»). PDF отправляется в Claude API напрямую.
+**Удалено:** `sharp`, `pdf-lib`, `@vercel/functions` — PDF идёт в Claude API напрямую.
 
 ---
 
@@ -73,31 +83,34 @@
 
 | URL | Описание | Статус |
 |-----|----------|--------|
-| `/` | Лендинг сервиса | ✅ Работает |
-| `/m/[slug]` | Главная ресторана (название, часы, кнопка «Меню») | ✅ `dynamic = force-dynamic` |
-| `/m/[slug]/menu` | Меню (категории, блюда, цены) | ✅ Работает |
-| `/m/[slug]/item/[itemId]` | Карточка блюда | ✅ Работает |
-| `/m/[slug]/contacts` | Контакты, часы, ссылка на карты | ✅ Работает |
+| `/` | Лендинг сервиса | ✅ |
+| `/m/[slug]` | Главная (лого, часы, кнопка «View menu») | ✅ `force-dynamic` |
+| `/m/[slug]/menu` | Меню (категории, блюда, цены, плейсхолдеры) | ✅ |
+| `/m/[slug]/item/[itemId]` | Карточка блюда | ✅ |
+| `/m/[slug]/contacts` | Контакты, часы, Google Maps | ✅ |
 
 Query-параметры:
-- `?lang=xx` — язык (через таблицу `translations`)
+- `?lang=xx` — язык (таблица `translations`)
 - `?src=qr` — учёт QR-сканов в аналитике
 
 **Важно:** ресторан виден только если `is_published = true`.  
-Slug уникален; при дубликате имени добавляется суффикс (`zobnin` → `zobnin-2`).
+**Slug:** при создании — явное поле с live-проверкой (`/api/slug/check`). Авто-суффиксы `-2` **больше не добавляются** (старые рестораны могут иметь legacy slug, напр. `zobnin-2`).
 
 ### Админка (требует авторизации)
 
 | URL | Описание |
 |-----|----------|
-| `/login` | Вход (magic link) |
+| `/login` | Magic link |
 | `/admin` | Список ресторанов (+ Delete) |
-| `/admin/new` | Создание ресторана (**slug с live-проверкой**, preview URL) |
-| `/admin/[id]` | Dashboard: аналитика, навигация, **блок «Публичные ссылки»** |
-| `/admin/[id]/menu` | Menu editor + upload + improve descriptions |
-| `/admin/[id]/menu/review/[jobId]` | Review AI-распознанного меню → Confirm & import |
-| `/admin/[id]/settings` | Контакты, часы, тема, валюта, языки, **Published** |
-| `/admin/[id]/qr` | Генерация и скачивание QR |
+| `/admin/new` | Создание ресторана: **slug + live-check + preview URL** |
+| `/admin/[id]` | Dashboard, аналитика, **PublicSiteCard** (ссылки + Copy) |
+| `/admin/[id]/menu` | Menu editor, upload, improve descriptions, **PublicSiteCard** |
+| `/admin/[id]/menu?imported=1` | После import — баннер **«What's next»** |
+| `/admin/[id]/menu/review/[jobId]` | Review AI → Confirm & import |
+| `/admin/[id]/settings` | Контакты, тема, часы, валюта, **Published**, slug (read-only) |
+| `/admin/[id]/qr` | QR + **PublicSiteCard** + Copy URL меню |
+
+**Общее для `/admin/[id]/*`:** если `is_published = false` — жёлтый баннер «Your site is not published yet».
 
 ---
 
@@ -105,16 +118,27 @@ Slug уникален; при дубликате имени добавляетс
 
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
-| `/api/parse-menu` | POST | Загрузка файла в Storage + создание `parse_job` (быстрый ответ) |
+| `/api/parse-menu` | POST | Upload в Storage + `parse_job` (JPG/PNG ≤10 MB, PDF ≤32 MB) |
 | `/api/parse-menu/[jobId]` | GET | Статус job |
-| `/api/parse-menu/[jobId]/process` | POST | AI-обработка (Claude), maxDuration **60 сек** (Hobby) |
-| `/api/slug/check` | GET | Проверка доступности slug |
+| `/api/parse-menu/[jobId]/process` | POST | AI-парсинг (Claude), max **60 сек** |
+| `/api/slug/check?slug=` | GET | Доступность slug |
 | `/api/improve-descriptions` | POST | AI-описания для блюд |
-| `/api/translate` | POST | Перевод меню на языки из Settings |
+| `/api/translate` | POST | Перевод меню |
 | `/api/generate-qr` | POST | PNG + SVG QR |
-| `/api/track` | POST | События аналитики |
-| `/api/auth/send-code` | POST | Отправка magic link |
-| `/api/auth/check` | GET | Диагностика Supabase/env |
+| `/api/track` | POST | Аналитика |
+| `/api/auth/send-code` | POST | Magic link |
+| `/api/auth/check` | GET | Диагностика env/Supabase |
+
+### Parse pipeline
+
+```
+Upload (POST /parse-menu) → jobId
+  → Process (POST /parse-menu/[jobId]/process) → 30–60 сек
+  → Review → Confirm & import
+  → Redirect /menu?imported=1
+```
+
+Jobs в `processing` **> 10 мин** автоматически → `error`.
 
 ---
 
@@ -123,161 +147,133 @@ Slug уникален; при дубликате имени добавляетс
 ### 6.1 Владелец: первый запуск
 
 ```
-/login → magic link → /admin
-  → Create restaurant
-  → Dashboard
+/login → magic link
+  → /admin/new — имя + slug (live check) + preview URL
+  → Dashboard (PublicSiteCard, stats)
   → Menu editor → Upload menu (PDF/photo)
-  → AI parsing (30–90 сек)
-  → Review parsed menu → Confirm & import
-  → Settings → Published ✓, валюта, лого, адрес
-  → QR code → скачать
+  → AI parsing (POST /process, до 60 сек)
+  → Review → Confirm & import
+  → «What's next»: ✓ review → publish → QR
+  → Settings → Published ✓, logo, address, currency
+  → QR → download PNG/SVG
 ```
 
 ### 6.2 Гость
 
 ```
 QR / ссылка → /m/{slug}/menu
-  → список категорий и блюд
-  → клик по блюду → /m/{slug}/item/{id}
+  → категории → карточки блюд (emoji-плейсхолдер если нет фото)
+  → клик → /m/{slug}/item/{id}
+  → Home / Contacts — опционально
 ```
 
-### 6.3 Menu editor — действия
+### 6.3 Menu editor
 
 | Действие | Что делает |
 |----------|------------|
-| Upload menu (PDF/photo) | AI парсинг → review → import |
-| Add category / Add item | Ручное добавление |
-| Improve descriptions | Claude пишет/улучшает описания (блок Apply/Dismiss) |
-| Photo (на каждом блюде) | Ручная загрузка фото в bucket `dish-photos` |
-| Перетаскивание ↑↓ | Сортировка категорий и блюд |
+| Upload menu | AI парсинг → review → import |
+| Improve descriptions | Claude → Apply/Dismiss |
+| Photo (на блюде) | Ручная загрузка в `dish-photos` |
+| Add category / item | Ручное добавление |
+| ↑↓ | Сортировка |
 
 ---
 
-## 7. AI — что умеет и чего не умеет
+## 7. AI — возможности и ограничения
 
 ### ✅ Реализовано
 
-1. **Парсинг меню** (фото JPG/PNG, PDF через Claude document API)
-   - PDF до 32 MB, изображения до 10 MB
-   - Jobs в `processing` > 10 мин → auto `error`
+| Функция | Детали |
+|---------|--------|
+| **Парсинг JPG/PNG** | Claude vision, до 10 MB |
+| **Парсинг PDF** | Claude document API, до 32 MB, без sharp |
+| **Improve descriptions** | Все блюда, Apply/Dismiss |
+| **Translate** | Кнопка в Settings → `locales` |
+| **Stale job cleanup** | processing > 10 min → error |
 
-2. **Improve descriptions**
-   - Генерация/улучшение текстовых описаний для блюд
-   - Предложения с Apply/Dismiss
+### ❌ Не реализовано / REJECTED
 
-3. **Translate** (Settings)
-   - Перевод полей меню на языки из `locales`
-
-### ❌ Не реализовано
-
-- **Вырезание фото блюд** из загруженного меню
-- **Автоматическая подстановка** scan-изображения на сайт
-- **WYSIWYG-редактор** страниц
-- **Бронирование, доставка, оплата**
-- **SEO, домены, мультитенантный white-label**
+| Функция | Статус |
+|---------|--------|
+| Crop фото блюд со scan | **REJECTED** → emoji-плейсхолдеры |
+| WYSIWYG-редактор страниц | Backlog (трек B) |
+| Бронирование, доставка, оплата | Out of scope |
+| Custom domains | Backlog |
 
 ---
 
 ## 8. Модель данных (кратко)
 
 ```
-restaurants
-  ├── menus (is_active)
-  │     └── categories
-  │           └── items (price, variants, tags, photo_url, is_available)
-  ├── parse_jobs (status, result JSON, source_file_url)
-  ├── translations (entity_type, entity_id, locale, field, value)
+restaurants (slug UNIQUE, is_published, theme, hours, locales, currency)
+  ├── menus → categories → items (price, variants, tags, photo_url)
+  ├── parse_jobs (pending → processing → done/error)
+  ├── translations
   ├── qr_codes
-  └── events (menu_view, item_view, qr_scan)
+  └── events (menu_view, qr_scan, item_view)
 
-Storage:
-  menu-scans   — загруженные PDF/фото меню (private)
-  dish-photos  — фото блюд (public)
-  logos        — логотипы (public)
-  qr-codes     — QR (public)
+Storage: menu-scans (private), dish-photos, logos, qr-codes (public)
 ```
 
-Меню — **structured data** в Postgres. Публичный сайт, QR и экспорт — производные от БД.
+Публичное чтение — через **anon key** + RLS «public read published». Cookies не нужны.
 
 ---
 
 ## 9. Публичный UI — что видит гость
 
-Минималистичный **mobile-first** интерфейс:
+Mobile-first, тема из Settings (`theme.primary`, light/dark):
 
-- Шапка с названием ресторана
-- Переключатель языка (если `locales.length > 1`)
-- **Menu:** категории → карточки блюд (название, цена, описание, теги)
-- **Item:** детальная карточка
-- **Contacts:** адрес, телефон, email, сайт, часы, Google Maps
-- **Home:** лого, название, кнопка «View menu», часы *(сейчас 500)*
-
-Тема: `theme.primary`, `theme.mode` (light/dark) из Settings.
+- **Menu** — категории, карточки блюд, цены, описания, теги
+- **Плейсхолдер фото** — emoji по категории/тегу (🍕 🥩 🥗 …), если `photo_url` пуст
+- **Item** — детальная карточка + плейсхолдер
+- **Home** — лого, название, часы, кнопка «View menu»
+- **Contacts** — адрес, телефон, email, карта
 
 ---
 
 ## 10. Аналитика (Dashboard)
 
-Счётчики за 7 и 30 дней:
-
-- `menu_view` — просмотры меню
-- `qr_scan` — переходы с `?src=qr`
-- `item_view` — просмотры блюд *(есть в схеме, UI на dashboard частично)*
+Счётчики за 7 и 30 дней: `menu_view`, `qr_scan` (через `?src=qr`).
 
 ---
 
-## 11. Текущий production-кейс (Zobnin)
+## 11. Production-кейс: Zobnin (legacy)
 
 | Параметр | Значение |
 |----------|----------|
 | Restaurant ID | `c07145f5-df3d-4fe9-b0a2-ba124dbc1ee0` |
-| Slug | **`zobnin-2`** (не `zobnin`) |
-| Published | ✅ `true` |
-| Публичное меню | https://launcher-black.vercel.app/m/zobnin-2/menu |
-| Главная | https://launcher-black.vercel.app/m/zobnin-2 — **500** |
+| Slug | **`zobnin-2`** (legacy — создан до slug picker) |
+| Published | ✅ |
+| Меню | https://launcher-black.vercel.app/m/zobnin-2/menu |
+| Главная | https://launcher-black.vercel.app/m/zobnin-2 |
 
-Меню на сайте: категория «MENU», несколько блюд с ценами.  
-Структура после import может отличаться от экрана review (зависит от confirm и ручных правок).  
-Валюта по умолчанию при создании — **USD** (меняется в Settings).
+> Новые рестораны получают slug явно при создании. `zobnin-2` — исторический артеfact.
 
 ---
 
-## 12. Известные проблемы и ограничения
+## 12. Спринт «Стабилизация» — что сделано (b6ddf4d)
 
-### Баги (после спринта «Стабилизация»)
+| # | Задача | Результат |
+|---|--------|-----------|
+| 1 | Fix `/m/[slug]` 500 | `force-dynamic`, public client без cookies |
+| 2 | PDF без sharp | Claude document API; sharp/pdf-lib удалены |
+| 3 | Таймауты | maxDuration 60; stale jobs > 10 min |
+| 4 | Slug UX | Live-check, preview URL, без авто-суффиксов |
+| 5 | Onboarding | What's next, unpublished banner, PublicSiteCard + Copy |
+| 6 | Backlog cleanup | RUB убран; трек C REJECTED |
+| 7 | Плейсхолдеры | DishPhotoPlaceholder на menu/item |
 
-| # | Проблема | Статус |
-|---|----------|--------|
-| 1 | `/m/[slug]` 500 | ✅ Исправлено (`force-dynamic`, public client без cookies) |
-| 2 | Slug `-2` без предупреждения | ✅ Исправлено (явное поле slug + live check) |
-| 3 | Публичная ссылка спрятана | ✅ PublicSiteCard + Copy на Dashboard, Menu, QR |
-| 4 | PDF через sharp | ✅ Удалено; native PDF в Claude |
+---
 
-### Ограничения платформы
+## 13. Известные ограничения
 
 | # | Ограничение |
 |---|-------------|
-| 1 | Vercel Hobby — **maxDuration 60 сек** на AI routes. При апгрейде на Pro поднять до 300 в `vercel.json` |
-| 2 | Supabase free — magic link only, без кастомных email-шаблонов |
-| 3 | Кириллица в PowerShell/логах может отображаться как `???` — в БД данные могут быть корректны |
-
-### UX (остаточные gaps)
-
-- Нет preview «как видит гость» в админке (iframe)
-- Фото блюд — ручная загрузка или emoji-плейсхолдеры (✅ добавлены)
-
----
-
-## 13. Недавние исправления (git history)
-
-| Commit | Суть |
-|--------|------|
-| `09468ec` | Improve descriptions: не молчит, обрабатывает все блюда |
-| `65261b8` | PublicSiteCard, попытка fix главной (generateStaticParams) |
-| `3f59b33` | sharp: фото без конвертации на Vercel |
-| `71ae2d0` | Upload / process split — fix 500/529 на parse-menu |
-| `a9b369a` | Delete restaurant |
-| `2ff1226` | Magic link auth |
+| 1 | Vercel Hobby — AI max **60 сек**; большие PDF могут не успеть |
+| 2 | Supabase free — только magic link, без custom SMTP |
+| 3 | Фото блюд — только ручная загрузка (не из scan) |
+| 4 | Нет preview «как видит гость» в админке |
+| 5 | Legacy slug `zobnin-2` у существующего ресторана |
 
 ---
 
@@ -286,100 +282,107 @@ Storage:
 ```
 src/
 ├── app/
-│   ├── page.tsx                 # Landing
-│   ├── login/
-│   ├── admin/                   # Admin UI
-│   ├── m/[slug]/                # Public restaurant
-│   ├── api/                     # API routes
-│   └── auth/                    # confirm, callback
+│   ├── admin/[restaurantId]/layout.tsx   # UnpublishedBanner
+│   ├── m/[slug]/                         # Public (force-dynamic)
+│   └── api/
+│       ├── parse-menu/                   # upload + process
+│       └── slug/check/                   # slug availability
 ├── components/
-│   ├── admin/                   # MenuEditor, SettingsForm, QrPanel, …
-│   └── public/                  # PublicHeader, LanguageSwitcher, …
-├── actions/                     # Server actions (menu, restaurants)
-├── lib/
-│   ├── ai/                      # parse-menu, process-parse-job, translate
-│   ├── data/restaurants.ts      # Data fetching + cache
-│   ├── supabase/                # clients
-│   └── utils/
-└── middleware.ts                # Auth guard для /admin
+│   ├── admin/
+│   │   ├── NewRestaurantForm.tsx         # slug picker
+│   │   ├── PublicSiteCard.tsx            # links + Copy
+│   │   ├── WhatsNextBanner.tsx
+│   │   ├── UnpublishedBanner.tsx
+│   │   └── CopyButton.tsx
+│   └── public/
+│       └── DishPhotoPlaceholder.tsx
+├── lib/ai/
+│   ├── parse-menu.ts                     # image + PDF parsers
+│   ├── process-parse-job.ts
+│   └── parse-jobs.ts                     # stale job cleanup
+└── lib/data/restaurants.ts               # createPublicClient (no cookies)
 
-supabase/migrations/             # SQL schema
-docs/PRODUCT_STATUS.md           # этот файл
-vercel.json                      # maxDuration для parse routes
+docs/PRODUCT_STATUS.md
+vercel.json                               # maxDuration: 60
 ```
 
 ---
 
-## 15. Что считать «готовым MVP» vs «не доделано»
+## 15. MVP checklist
 
-### MVP считается рабочим, если:
+### Готово ✅
 
-- [x] Регистрация / вход
-- [x] CRUD ресторана
-- [x] AI upload → review → import меню
-- [x] Ручное редактирование меню
-- [x] Publish + публичное меню по slug
+- [x] Auth (magic link)
+- [x] CRUD ресторана + delete
+- [x] Slug picker с live-check
+- [x] AI upload → review → import
+- [x] PDF через Claude document API (без sharp)
+- [x] Improve descriptions
+- [x] Translate
+- [x] Publish + public menu
 - [x] QR generation
 - [x] Settings (контакты, тема, часы, валюта)
-- [x] Improve descriptions
-- [x] Translate (API + кнопка в Settings)
-- [x] **Главная `/m/[slug]` без 500**
-- [x] Onboarding «What's next» + public URL с Copy
-- [x] Slug picker при создании ресторана
-- [x] PDF без sharp
-- [x] Плейсхолдеры фото на публичном меню
+- [x] Главная `/m/[slug]` без 500
+- [x] Onboarding «What's next»
+- [x] PublicSiteCard + Copy (Dashboard, Menu, QR)
+- [x] Unpublished banner
+- [x] Emoji-плейсхолдеры фото
 
-### Не входило в MVP (backlog)
-
-1. ~~**Фото блюд из scan-меню**~~ — **REJECTED**. Кропы с бумажного меню выглядят хуже отсутствия фото. Вместо этого — emoji-плейсхолдеры по категории.
-2. **Полноценный landing ресторана** (hero, gallery, about) — трек B
-3. **Preview mode** в админке
-4. **Экспорт** PDF / iiko / r_keeper
-5. **Custom domain** per restaurant
-
-> Продукт целится в **US-рынок**. Дефолтная валюта **USD**. Мультивалютность через Settings.
-
----
-
-## 16. Рекомендуемые направления ревизии
-
-Для обсуждения с product/заказчиком — три трека:
+### Backlog (следующие спринты)
 
 | Трек | Фокус | Effort |
 |------|-------|--------|
-| **A. Стабилизация** | ✅ Выполнено (июнь 2026) | — |
-| **B. Визуал** | Улучшить public menu UI, hero на главной | 3–5 дней |
-| ~~**C. Vision**~~ | Crop фото со scan — **REJECTED** (используем плейсхолдеры) | — |
+| **A. Стабилизация** | ✅ Done | — |
+| **B. Визуал** | Hero, улучшение public UI, preview в админке | 3–5 дней |
+| ~~**C. Vision crop**~~ | **REJECTED** | — |
+| **D. Integrations** | Экспорт, custom domains | TBD |
+
+> **US-рынок.** Дефолтная валюта **USD**. Другие валюты — через Settings.
 
 ---
 
-## 17. Как проверить вручную (checklist)
+## 16. Чеклист приёмки (ручная проверка)
 
 ```
-[ ] /login — magic link приходит и логинит
-[ ] /admin/new — slug с live-проверкой, нельзя создать занятый slug
-[ ] /m/{slug} — главная открывается (200)
-[ ] PDF-меню парсится без sharp
-[ ] /admin/[id]/settings — Published ON, currency, logo
-[ ] /admin/[id]/menu — upload фото меню → review → confirm
-[ ] /admin/[id]/menu — improve descriptions → apply
-[ ] /admin/[id]/qr — generate QR
-[ ] /m/{slug}/menu — меню видно без логина
+[ ] /login — magic link работает
+[ ] /admin/new — slug live-check, нельзя занятый slug, preview URL
+[ ] /admin/new — создать ресторан → Dashboard
+[ ] Upload JPG → review → confirm → «What's next» баннер
+[ ] Upload PDF → парсится без ошибки sharp
+[ ] Settings → Published ON → PublicSiteCard показывает ссылки
+[ ] /m/{slug} — 200, лого/часы/кнопка меню
+[ ] /m/{slug}/menu — блюда + emoji-плейсхолдеры
 [ ] /m/{slug}/contacts — контакты
-[ ] QR URL с ?src=qr — событие в dashboard stats
+[ ] QR generate → download PNG → ?src=qr в stats
+[ ] Improve descriptions → suggestions → Apply
+[ ] Unpublished banner при is_published = false
+[ ] Copy button копирует URL меню
 ```
 
 ---
 
-## 18. Контакты и ссылки
+## 17. Git history (ключевые коммиты)
+
+| Commit | Суть |
+|--------|------|
+| `b6ddf4d` | **Спринт «Стабилизация»** — полный пакет фиксов |
+| `ca46a62` | PRODUCT_STATUS документ |
+| `09468ec` | Improve descriptions fix |
+| `65261b8` | PublicSiteCard |
+| `3f59b33` | sharp crash fix (до удаления sharp) |
+| `71ae2d0` | Upload/process split |
+
+---
+
+## 18. Ссылки
 
 | Ресурс | URL |
 |--------|-----|
-| Production app | https://launcher-black.vercel.app |
+| Production | https://launcher-black.vercel.app |
 | GitHub | https://github.com/zobnin8-ux/launcher |
-| Supabase Dashboard | https://supabase.com/dashboard/project/rducvwjvtwvryuwepzsv |
-| Vercel Dashboard | (project launcher-black) |
+| Supabase | https://supabase.com/dashboard/project/rducvwjvtwvryuwepzsv |
+| Demo menu | https://launcher-black.vercel.app/m/zobnin-2/menu |
 
 ---
 
-*Документ подготовлен по результатам разработки и отладки MVP. Для ревизии продукта передать этот файл + указать приоритет трека A/B/C из раздела 16.*
+*Документ обновлён после спринта «Стабилизация» (commit `b6ddf4d`). Следующий приоритет — **трек B: Визуал**.*
