@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: { jobId: string } }
 ) {
   const { jobId } = params;
-  const supabase = await createClient();
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

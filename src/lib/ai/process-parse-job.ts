@@ -5,21 +5,34 @@ import { fileToImageBuffers } from "@/lib/ai/pdf-images";
 export async function processParseJob(jobId: string) {
   const admin = createAdminClient();
 
-  await admin
+  const { data: job } = await admin
+    .from("parse_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+
+  if (!job) throw new Error("Job not found");
+  if (job.status === "done") return;
+  if (job.status === "error") {
+    throw new Error(job.error_message ?? "Parsing failed");
+  }
+
+  const { data: claimed } = await admin
     .from("parse_jobs")
     .update({ status: "processing", updated_at: new Date().toISOString() })
-    .eq("id", jobId);
+    .eq("id", jobId)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle();
+
+  if (!claimed) {
+    if (job.status === "processing") return;
+    throw new Error("Could not start parsing job");
+  }
 
   try {
-    const { data: job } = await admin
-      .from("parse_jobs")
-      .select("*")
-      .eq("id", jobId)
-      .single();
 
-    if (!job) throw new Error("Job not found");
-
-    const path = job.source_file_url;
+    const path = claimed.source_file_url;
 
     const { data: fileData, error: downloadError } = await admin.storage
       .from("menu-scans")

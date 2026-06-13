@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/parse-menu/[jobId]/process/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/parse-menu/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

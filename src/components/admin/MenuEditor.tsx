@@ -75,16 +75,56 @@ export function MenuEditor({
         body: formData,
         signal: controller.signal,
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setParseStatus(data.error ?? "Upload failed");
+      const raw = await res.text();
+      let data: { jobId?: string; error?: string } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        setParseStatus(`Upload failed (${res.status}). ${raw.slice(0, 120)}`);
         setParseLoading(false);
         return;
       }
 
-      setParseStatus("AI is reading your menu… (30–90 sec)");
-      pollJob(data.jobId);
+      if (!res.ok) {
+        setParseStatus(data.error ?? `Upload failed (${res.status})`);
+        setParseLoading(false);
+        return;
+      }
+
+      if (!data.jobId) {
+        setParseStatus("Upload failed: no job id returned");
+        setParseLoading(false);
+        return;
+      }
+
+      setParseStatus("AI is reading your menu… (30–90 sec, keep this tab open)");
+
+      const processController = new AbortController();
+      const processTimeout = setTimeout(() => processController.abort(), 120000);
+
+      try {
+        const processRes = await fetch(`/api/parse-menu/${data.jobId}/process`, {
+          method: "POST",
+          signal: processController.signal,
+        });
+        const processData = await processRes.json();
+
+        if (!processRes.ok) {
+          setParseStatus(processData.error ?? "Parsing failed");
+          return;
+        }
+
+        router.push(`/admin/${restaurantId}/menu/review/${data.jobId}`);
+      } catch (processErr) {
+        setParseStatus(
+          processErr instanceof Error && processErr.name === "AbortError"
+            ? "AI parsing timed out. Try a smaller/clearer photo, or add items manually."
+            : "Parsing failed. Try again."
+        );
+      } finally {
+        clearTimeout(processTimeout);
+        setParseLoading(false);
+      }
     } catch (err) {
       setParseLoading(false);
       setParseStatus(
@@ -96,45 +136,6 @@ export function MenuEditor({
       clearTimeout(timeout);
       e.target.value = "";
     }
-  }
-
-  function pollJob(jobId: string) {
-    let attempts = 0;
-    const maxAttempts = 60; // 3 min
-
-    const interval = setInterval(async () => {
-      attempts++;
-      try {
-        const res = await fetch(`/api/parse-menu/${jobId}`);
-        const job = await res.json();
-
-        if (job.status === "done") {
-          clearInterval(interval);
-          setParseLoading(false);
-          router.push(`/admin/${restaurantId}/menu/review/${jobId}`);
-        } else if (job.status === "error") {
-          clearInterval(interval);
-          setParseLoading(false);
-          setParseStatus(job.error_message ?? "Parsing failed");
-        } else if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          setParseLoading(false);
-          setParseStatus("Timed out. Refresh the page and try again.");
-        } else {
-          setParseStatus(
-            job.status === "processing"
-              ? "AI is reading your menu…"
-              : `Waiting… (${job.status})`
-          );
-        }
-      } catch {
-        if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          setParseLoading(false);
-          setParseStatus("Lost connection. Refresh and try again.");
-        }
-      }
-    }, 3000);
   }
 
   async function handleImproveDescriptions() {
