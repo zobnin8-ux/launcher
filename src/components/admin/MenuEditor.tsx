@@ -54,41 +54,85 @@ export function MenuEditor({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      setParseStatus("File too large. Max 10 MB.");
+      return;
+    }
+
     setParseLoading(true);
-    setParseStatus("Uploading…");
+    setParseStatus(`Uploading ${file.name}…`);
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("restaurantId", restaurantId);
 
-    const res = await fetch("/api/parse-menu", { method: "POST", body: formData });
-    const data = await res.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000);
 
-    if (!res.ok) {
-      setParseStatus(data.error ?? "Upload failed");
+    try {
+      const res = await fetch("/api/parse-menu", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setParseStatus(data.error ?? "Upload failed");
+        setParseLoading(false);
+        return;
+      }
+
+      setParseStatus("AI is reading your menu… (30–90 sec)");
+      pollJob(data.jobId);
+    } catch (err) {
       setParseLoading(false);
-      return;
+      setParseStatus(
+        err instanceof Error && err.name === "AbortError"
+          ? "Upload timed out. Try a smaller photo or check your connection."
+          : "Upload failed. Try again."
+      );
+    } finally {
+      clearTimeout(timeout);
+      e.target.value = "";
     }
-
-    setParseStatus("Processing menu…");
-    pollJob(data.jobId);
   }
 
   function pollJob(jobId: string) {
-    const interval = setInterval(async () => {
-      const res = await fetch(`/api/parse-menu/${jobId}`);
-      const job = await res.json();
+    let attempts = 0;
+    const maxAttempts = 60; // 3 min
 
-      if (job.status === "done") {
-        clearInterval(interval);
-        setParseLoading(false);
-        router.push(`/admin/${restaurantId}/menu/review/${jobId}`);
-      } else if (job.status === "error") {
-        clearInterval(interval);
-        setParseLoading(false);
-        setParseStatus(job.error_message ?? "Parsing failed");
-      } else {
-        setParseStatus(`Processing… (${job.status})`);
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch(`/api/parse-menu/${jobId}`);
+        const job = await res.json();
+
+        if (job.status === "done") {
+          clearInterval(interval);
+          setParseLoading(false);
+          router.push(`/admin/${restaurantId}/menu/review/${jobId}`);
+        } else if (job.status === "error") {
+          clearInterval(interval);
+          setParseLoading(false);
+          setParseStatus(job.error_message ?? "Parsing failed");
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          setParseLoading(false);
+          setParseStatus("Timed out. Refresh the page and try again.");
+        } else {
+          setParseStatus(
+            job.status === "processing"
+              ? "AI is reading your menu…"
+              : `Waiting… (${job.status})`
+          );
+        }
+      } catch {
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          setParseLoading(false);
+          setParseStatus("Lost connection. Refresh and try again.");
+        }
       }
     }, 3000);
   }
@@ -120,6 +164,15 @@ export function MenuEditor({
 
   return (
     <div className="space-y-6">
+      {parseStatus && parseLoading && (
+        <p className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          {parseStatus}
+        </p>
+      )}
+      {parseStatus && !parseLoading && parseStatus !== "Upload menu (PDF/photo)" && (
+        <p className="text-sm text-red-600">{parseStatus}</p>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <label className="px-4 py-2 bg-orange-600 text-white rounded-lg cursor-pointer hover:bg-orange-700 text-sm font-medium">
           {parseLoading ? parseStatus : "Upload menu (PDF/photo)"}
