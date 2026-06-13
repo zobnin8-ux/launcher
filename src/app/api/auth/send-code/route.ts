@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    message: "Code sent. Check inbox and spam.",
+    message: "Link sent. Check inbox and spam, then click the link in the email.",
     data,
   });
 }
